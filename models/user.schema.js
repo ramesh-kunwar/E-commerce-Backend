@@ -47,7 +47,7 @@ const userSchema = mongoose.Schema(
 userSchema.pre("save", async function (next) { // pre hook
 
     // don't hash the password if it has not been modified (or is not new)
-    if (!this.modified("password")) {
+    if (!this.isModified("password")) {
         return next()
     }
 
@@ -75,6 +75,19 @@ userSchema.methods = {
                 expiresIn: config.JWT_EXPIRY
             }
         )
+    },
+
+    generateForgotPasswordToken: function () {
+        const forgotToken = crypto.randomBytes(20).toString("hex")
+
+        // step 1 - save to DB
+        // here we are again hashing the forgotToken for extra security and saving to db
+        this.forgotPasswordToken = crypto.createHash("sha256").update(forgotToken).digest("hext")
+
+        this.forgotPasswordExpiry = Date.now() + 20 + 60 * 1000
+
+        // step 2 - return the value to the user
+        return forgotToken;
     }
 }
 
