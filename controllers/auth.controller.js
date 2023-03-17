@@ -118,3 +118,4 @@ export const logout = asyncHandler(async (_req, res) => { // we are not using re
         message: "Logged Out"
     })
 })
+
