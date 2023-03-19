@@ -1,7 +1,7 @@
 import User from "../models/user.schema"
 import asyncHandler from "../services/asyncHandler"
 import CustomError from "../utils/customError"
-
+import mailHelper from "../utils/mailHelper"
 
 export const cookieOptions = {
     expires: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
@@ -119,3 +119,61 @@ export const logout = asyncHandler(async (_req, res) => { // we are not using re
     })
 })
 
+
+
+/*************************************************************************
+    @FORGOT_PASSWORD
+    @route http://localhost:4000/api/auth/password/forgot
+    @description User will submit email and we will generate a token
+    @parameters  email
+    @return success message - email send
+************************************************************************/
+
+
+export const forgotPassword = asyncHandler(async (req, res) => {
+    // step 1: grab the email
+    const { email } = req.body;
+
+    // step 2: search the user in the database.
+    // check email for null or "" (assignment)
+    const user = await User.findOne({ email })
+
+    if (!user) {
+        throw new CustomError("User not found", 404)
+    }
+
+    //  generate reset token
+    const resetToken = user.generateForgotPasswordToken()
+
+
+    // save to db
+    await user.save({ validateBeforeSave: false }) // user.save() needs all the fields which are required: true in model, so to avoid that we validateBeforeSave: false
+
+
+    // send email to the user - url to forgot Password //later on when resetting the password, grab the url from user's token
+
+    const resetUrl =
+        `${req.protocol}://${req.get("host")}/api/auth/password/reset/${resetToken}`
+
+    const text = `Your password reset url is \n\n${resetUrl} \n\n`
+
+    try {
+        await mailHelper({
+            email: user.email,
+            subject: "Password reset email for website",
+            text: text
+        })
+        res.status(200).json({
+            success: true,
+            message: `Email send to ${user.emamil}`
+        })
+    } catch (error) {
+        // roll back - clear fields and save
+        user.forgotPasswordToken = undefined
+        user.forgotPasswordExpiry = undefined
+
+        await user.save({ validateBeforeSave: false })
+        throw new CustomError(error.message || "Email sent failure", 500)
+    }
+
+})
